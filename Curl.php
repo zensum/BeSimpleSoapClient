@@ -48,6 +48,13 @@ class Curl
     private $response;
 
     /**
+     * Password and Login if header authentication override
+     *
+     * @var string
+     */
+    private $pwd, $login;
+
+    /**
      * Constructor.
      *
      * @param array $options                    Options array from SoapClient constructor
@@ -61,11 +68,14 @@ class Curl
         }
         $this->followLocationMaxRedirects = $followLocationMaxRedirects;
 
+        $verifySSL = (isset($options['verify_SSL'])?$options['verify_SSL']:false);
+
         // make http request
         $this->ch = curl_init();
         $curlOptions = array(
             CURLOPT_ENCODING => '',
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => $verifySSL,
+            CURLOPT_SSL_VERIFYHOST => $verifySSL,
             CURLOPT_FAILONERROR => false,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
@@ -74,6 +84,11 @@ class Curl
             CURLINFO_HEADER_OUT => true,
         );
         curl_setopt_array($this->ch, $curlOptions);
+
+        if(isset($options['ssl_version'])) {
+            curl_setopt($this->ch, CURLOPT_SSLVERSION, $options['ssl_version']);
+        }
+
         if (isset($options['compression']) && !($options['compression'] & SOAP_COMPRESSION_ACCEPT)) {
             curl_setopt($this->ch, CURLOPT_ENCODING, 'identity');
         }
@@ -88,8 +103,13 @@ class Curl
             curl_setopt($this->ch, CURLOPT_PROXYUSERPWD, $options['proxy_user'] . ':' . $options['proxy_password']);
         }
         if (isset($options['login'])) {
-            curl_setopt($this->ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-            curl_setopt($this->ch, CURLOPT_USERPWD, $options['login'].':'.$options['password']);
+            if(!$isset($options['authOverride'])) {
+                curl_setopt($this->ch, CURLOPT_USERPWD, $options['login'].':'.$options['password']);
+                curl_setopt($this->ch, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+            } elseif($options['authOverride']) {
+                $this->login = $options['login'];
+                $this->pwd = $options['password'];
+            }
         }
         if (isset($options['local_cert'])) {
             curl_setopt($this->ch, CURLOPT_SSLCERT, $options['local_cert']);
@@ -118,6 +138,10 @@ class Curl
     public function exec($location, $request = null, $requestHeaders = array())
     {
         curl_setopt($this->ch, CURLOPT_URL, $location);
+
+        if($this->pwd && $this->login) {
+            $requestHeaders['Authorization'] = 'Basic '. base64_encode($this->login.":".$this->pwd);
+        }
 
         if (!is_null($request)) {
             curl_setopt($this->ch, CURLOPT_POST, true);
