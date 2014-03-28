@@ -36,6 +36,7 @@
     },
     "target-dir": "BeSimple/SoapClient",
     "minimum-stability": "dev",
+    "version" : "2.0",
     "extra": {
         "branch-alias": {
             "dev-master": "0.2-dev"
